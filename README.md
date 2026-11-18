@@ -1,6 +1,6 @@
-# X_eTaL-Coder
+# train-xetal
 
-X_eTaL-Coder is a local coding-agent training project for
+`train-xetal` trains and evaluates X_eTaL-Coder, a local coding agent for
 [X_eTaL](https://github.com/softwarewrighter/X_eTaL), an experimental,
 statically typed array language. The project brings together validated
 training examples, fine-tuning, and benchmarks for an OpenCode agent
