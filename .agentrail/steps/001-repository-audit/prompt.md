@@ -1,0 +1,1 @@
+Audit the X_eTaL ecosystem and local GPU access. Deliver pinned capability audit, corpus inventory, and architecture before choosing a model or training backend.

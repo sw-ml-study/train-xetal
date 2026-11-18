@@ -1,0 +1,2128 @@
+
+I want to use softwarewrighter/X_eTaL-ML and X_eTaL-fine-tuning to teach an LLM that fits in under 8GB of a GPU VRAM how to program in X_eTaL programming language and use libraries.  This will be using the "best" fine-tuning approach supported by the existing repos to create a tool-using coding agent LLM suitable for use by OpenCode.  Note that this will be in parallel with development of LSP and DAP servers.  The xetal-coder trained model should be able to create idiomatic X_eTaL code, run related tools, diagnose/fix compilation errors, linter warnings, etc.  Need a plan for how to do this and show, via testing, that the trained LLM is better at coding X_eTaL than a general coding LLM it started with
+X_eTaL-Coder: Training and validating a specialized coding agent
+1. Goals and recommended architecture
+The objective is to turn an existing, general-purpose, open-weight coding LLM into a specialized X_eTaL coding agent, capable of writing idiomatic X_eTaL, using the standard libraries, and improving its own code through compiler, linter, test, and debugger feedback.
+
+The important distinction is that we're not simply teaching a model X_eTaL syntax. We're teaching it to participate in the complete X_eTaL software development process.
+
+I recommend treating this as three closely related projects:
+
+X_eTaL-Coder: A new repository for datasets, training configurations, evaluation benchmarks, model adapters, and OpenCode integration.
+
+X_eTaL-fine-tuning: The existing experimental framework for implementing and comparing fine-tuning methods.
+
+X_eTaL-ML: The educational and visualization framework for explaining the training process, adapter mathematics, and experimental results.
+
+The first milestone should be a reproducible experiment demonstrating that a fine-tuned model performs measurably better than its unmodified parent model.
+
+Proposed system architecture
+
+X_eTaL source repositories
+
+Core language · libraries · demos · tests · examples · documentation
+
+Dataset builder
+
+Examples, tool traces, corrections, repository context
+
+Evaluation builder
+
+Held-out coding tasks, compiler tests, lint scores
+
+Base coding model + fine-tuning adapter
+
+SFT → optional preference optimization → quantized inference
+
+X_eTaL-Coder inference server
+
+OpenAI-compatible API · model and adapter versions
+
+OpenCode coding agent
+
+Read/edit files · build · lint · test · inspect diagnostics · debug
+
+Compiler
+
+Syntax & types
+
+LSP / Linter
+
+Diagnostics & fixes
+
+DAP / Tests
+
+Debug & verify
+
+Tool results feed the agent's next action and produce additional evaluated training examples.
+
+Nonfunctional requirements
+Requirement
+
+Target
+
+GPU memory
+
+Under 8 GiB VRAM, including inference overhead
+
+Language quality
+
+Idiomatic, maintainable X_eTaL
+
+Library competence
+
+Correct imports, APIs, types, and idioms
+
+Agent compatibility
+
+OpenCode and tool-calling API
+
+Reliability
+
+Compiler-validated, lint-clean, tested code
+
+Reproducibility
+
+Pinned model, dataset, toolchain, and seed
+
+Evaluation
+
+Same tasks, tools, and budgets for baseline and trained models
+
+Deployment
+
+Local inference, without mandatory cloud services
+
+I would explicitly distinguish the 8 GiB inference limit from the training hardware requirement. Training can use a larger GPU or multiple GPUs. This allows us to optimize the final model for small GPUs without artificially restricting experimentation.
+
+2. What the existing repositories actually provide
+The public repositories establish a useful starting point, but they do not yet establish a complete production LLM fine-tuning pipeline.
+
+Repository
+
+Existing foundation
+
+Work needed
+
+X_eTaL
+
+Compiler, language specification, examples, documentation, toolchain
+
+Stable diagnostics and machine-readable tooling interfaces
+
+X_eTaL-ML
+
+ML primitives, quantization, embeddings, educational demonstrations
+
+Training telemetry and model comparison visualizations
+
+X_eTaL-fine-tuning
+
+LoRA experiments, learning materials, comparisons of adaptation methods
+
+Bridge from small educational experiments to actual LLM training
+
+X_eTaL-libraries
+
+Reusable language libraries
+
+API documentation and library usage datasets
+
+Proposed X_eTaL-Coder
+
+New
+
+Training orchestration, agent traces, benchmarks, deployment
+
+The fine-tuning repository explicitly describes LoRA variants, alternatives to backpropagation, direct weight editing, and AI-driven weight editing as areas of investigation. Its lessons emphasize measurable experiments and computations implemented in X_eTaL. 
+
+GitHub
++1
+
+X_eTaL-ML already provides the foundation for exploring the mathematics of quantization, attention, and other ML operations. 
+
+GitHub
++1
+
+I would preserve that educational emphasis rather than force X_eTaL to become a full-scale GPU training framework immediately.
+
+Architectural choice: Use a proven training backend for the first real model, while using X_eTaL to specify, demonstrate, and independently validate the training algorithms. Move selected training operations into X_eTaL as its GPU and ML capabilities mature.
+
+This keeps the coding-agent project from being blocked by the development of a complete X_eTaL-based LLM trainer.
+
+3. Choose the base model and adaptation strategy
+Base-model selection
+I would benchmark three size classes before committing to a particular model.
+
+Model class
+
+Approximate 4-bit weight memory
+
+Assessment
+
+1.5–2B parameters
+
+0.9–1.5 GiB
+
+Fast, economical, potentially weak at multi-step agent work
+
+3–4B parameters
+
+1.9–3 GiB
+
+Best initial target
+
+7–8B parameters
+
+4–5.5 GiB
+
+Stronger candidate, but tighter context and KV-cache budget
+
+These are rough deployment estimates including some quantization overhead, not complete VRAM requirements. Runtime buffers and the KV cache must be measured separately.
+
+The model must already demonstrate reasonable ability to follow instructions, produce structured tool calls, edit code, and reason about compiler feedback.
+
+A model that is excellent at completing Python but poor at multi-step tool use may be a worse starting point than a slightly weaker coding model with reliable agent behavior.
+
+My initial target would be a 3–4B instruct/coder model, with a 7–8B candidate as the quality-oriented comparison.
+
+Fine-tuning methods
+Proposed experiments, not a claim that every method is production-ready in the existing repositories.
+
+Method
+
+Strength
+
+Limitation
+
+Priority
+
+LoRA SFT
+
+Established, reproducible, adapter-based
+
+Higher training memory than QLoRA
+
+High
+
+QLoRA SFT
+
+Quantized base during adapter training
+
+More implementation complexity
+
+First choice
+
+DoRA
+
+May improve adaptation quality
+
+Additional overhead and integration
+
+Second phase
+
+LoRA-FA
+
+Potential activation-memory savings
+
+Backend support must be verified
+
+Experiment
+
+VeRA
+
+Very compact trainable parameters
+
+May limit adaptation capacity
+
+Experiment
+
+DPO / preference tuning
+
+Learns preferred solutions and style
+
+Requires high-quality preference pairs
+
+After SFT
+
+DUST / evolutionary approaches
+
+Interesting gradient-free alternatives
+
+Computational efficiency and quality uncertain
+
+Research track
+
+Direct weight editing
+
+Potentially targeted corrections
+
+Risk of unintended changes
+
+Research track
+
+Recommended sequence
+Stage A
+QLoRA supervised fine-tuning
+
+Teach syntax, semantics, idioms, library use, and tool interactions.
+Stage B
+Preference optimization
+
+Reward idiomatic, concise, tested X_eTaL solutions over verbose, brittle, or nonidiomatic alternatives.
+Stage C
+Feedback-driven agent improvement
+
+Incorporate verified compiler repairs, linter corrections, and successful multi-step development trajectories.
+QLoRA is the best initial engineering hypothesis, not a proven winner for X_eTaL. The benchmark should determine whether DoRA, LoRA-FA, VeRA, or another method produces a better quality-to-resource ratio.
+
+One additional experiment worth including is continued pretraining on X_eTaL source and documentation before instruction tuning. This could help a model internalize the language's unusual syntax and array semantics. However, the corpus may be too small to justify it, and careless training could degrade the model's existing coding abilities.
+
+I'd compare:
+
+Base model with no training.
+
+Base model with retrieval and good instructions.
+
+QLoRA SFT.
+
+Continued pretraining followed by QLoRA SFT.
+
+QLoRA SFT followed by preference optimization.
+
+The retrieval-enabled baseline is particularly important. Otherwise, we might credit fine-tuning for improvements that a well-designed coding agent could obtain simply by reading the language documentation.
+
+4. Construct the X_eTaL training corpus
+This is likely to be the most consequential part of the project.
+
+Because X_eTaL is a specialized language with a relatively small public corpus, high-quality examples are more important than simply accumulating millions of tokens.
+
+Dataset categories
+Category
+
+Initial target
+
+Purpose
+
+Syntax and semantics
+
+1,000
+
+Expressions, bindings, functions, types, arrays
+
+Idiomatic transformations
+
+750
+
+Array operations, pipelines, composition, macros
+
+Library usage
+
+1,000
+
+Imports, public APIs, real examples
+
+Compiler error repairs
+
+1,000
+
+Diagnose and correct invalid programs
+
+Linter improvements
+
+750
+
+Transform valid but poor code into idiomatic code
+
+Test-driven development
+
+500
+
+Implement against tests, verify results
+
+Tool-use trajectories
+
+500
+
+Inspect, edit, build, diagnose, retry
+
+Documentation and explanation
+
+500
+
+Explain code and library behavior
+
+Total
+
+6,000
+
+Initial experimental dataset
+
+These are proposed targets, not an estimate of how many suitable examples currently exist. Start with a smaller, rigorously validated set and expand only where it improves held-out performance.
+
+Data sources and priorities
+I would use the repositories in this order:
+
+Compiler and language tests, as authoritative examples of valid and invalid syntax.
+
+Standard library implementations and their tests.
+
+X_eTaL-demos and X_eTaL-ML programs.
+
+Library documentation and examples.
+
+Historical commits showing actual corrections.
+
+Carefully generated synthetic exercises, validated by the compiler and tests.
+
+A crucial distinction is that a passing compiler test does not necessarily represent idiomatic X_eTaL.
+
+For example, a compiler test may deliberately exercise an awkward construct, unusual precedence, or a compatibility feature. These examples are valuable for language understanding but should not automatically become preferred coding examples.
+
+I recommend tagging each example with:
+
+{
+  "language": "xetal",
+  "category": "library-usage",
+  "source_repo": "X_eTaL-ML",
+  "source_commit": "<commit-sha>",
+  "compiler_version": "<version>",
+  "validation": {
+    "parses": true,
+    "typechecks": true,
+    "tests_pass": true,
+    "lint_clean": true
+  },
+  "quality": {
+    "idiomatic": true,
+    "reviewed": true
+  }
+}
+
+This is metadata for the dataset pipeline; actual training records would use the base model's required chat template and tool-call format.
+
+Teach transformations, not just finished programs
+For each high-quality X_eTaL example, generate several related tasks.
+
+A single program can yield examples of creating it from a specification, explaining it, extending it, writing tests, repairing a type error, replacing a loop with an array operation, and identifying an appropriate library function.
+
+But avoid automatically treating every synthetic transformation as correct. Run the compiler, relevant tests, and lint checks; review ambiguous stylistic judgments.
+
+The special problem of X_eTaL idioms
+The model needs to learn the distinctions between:
+
+Array-oriented operations versus imperative loops.
+
+Functional composition versus unnecessary intermediate state.
+
+Immutable tuples versus mutable bindings.
+
+Built-in language operations versus library functions.
+
+Macros versus runtime functions.
+
+ASCII source syntax versus decorated mathematical rendering.
+
+Public m: macros versus runtime l: library APIs.
+
+Shape-aware operations versus invalid assumptions about broadcasting.
+
+These distinctions are not reliably learned from syntax examples alone.
+
+I would create an idiom catalog containing a canonical example, explanation, equivalent alternatives, anti-patterns, compiler-validity status, and applicable linter rules.
+
+That catalog can serve three purposes simultaneously: supervised training, retrieval documentation, and evaluation criteria.
+
+5. Train the model to use tools
+The model should not need to memorize every compiler diagnostic or library signature. It should learn when and how to retrieve authoritative information.
+
+I recommend exposing a small, stable set of operations to OpenCode.
+
+Tool capability
+
+Initial implementation
+
+Later integration
+
+Read source
+
+OpenCode file tools
+
+LSP document symbols
+
+Search symbols
+
+CLI search / generated index
+
+LSP workspace symbols
+
+Inspect library APIs
+
+xetal doc / registry metadata
+
+LSP hover and completion
+
+Validate code
+
+X_eTaL compiler
+
+LSP diagnostics
+
+Improve style
+
+X_eTaL linter
+
+LSP code actions
+
+Execute tests
+
+CLI test runner
+
+Test discovery integration
+
+Expand macros
+
+xetal expand
+
+Macro expansion preview
+
+Debug
+
+Existing CLI tracing/stepping
+
+DAP
+
+For each tool, define a versioned, machine-readable request and response format. The CLI should remain usable independently of the LSP and DAP servers.
+
+This is especially useful because the agent can start using the compiler and test runner before the LSP and DAP implementations are complete.
+
+Example of a training trajectory
+User request
+
+Create an X_eTaL function that performs a specified array transformation using the appropriate library.
+
+Agent inspects documentation
+
+Finds the library interface and examples instead of inventing an API.
+
+Agent writes X_eTaL source
+
+Uses the documented interface and idiomatic array expressions.
+
+Compiler returns a diagnostic
+
+For example, a type or shape mismatch with source location and diagnostic code.
+
+Agent repairs the implementation
+
+Uses the diagnostic and relevant source context, then recompiles.
+
+Agent runs lint and tests
+
+Resolves applicable warnings and checks functional behavior.
+
+Agent reports verified results
+
+Summarizes changes, successful tests, and any remaining limitations.
+
+Train on the full sequence, including tool calls and responses, rather than only the final corrected source.
+
+A model trained exclusively on final answers may become good at producing code but still fail at choosing tools, interpreting diagnostics, and recovering from mistakes.
+
+Prevent training on failed reasoning
+A failed agent run is valuable evidence, but not necessarily a good imitation target.
+
+Store complete trajectories for analysis, then construct supervised examples from verified successful actions. Failed attempts can be used as negative examples for preference training, with care to distinguish genuine model mistakes from tool failures or ambiguous specifications.
+
+Also capture the minimal correction whenever possible. This helps avoid an agent that rewrites entire files to fix a single compiler warning.
+
+6. Evaluation: demonstrate that training actually helps
+This is where I would invest heavily before performing the first substantial training run.
+
+The evaluation system should be a first-class part of X_eTaL-Coder, not an afterthought.
+
+Comparison groups
+All groups should use the same base-model family and inference quantization wherever possible.
+
+Group
+
+Model
+
+Context / tools
+
+A
+
+Original base
+
+Prompt only
+
+B
+
+Original base
+
+Documentation retrieval
+
+C
+
+Original base
+
+Full OpenCode tools
+
+D
+
+Fine-tuned model
+
+Prompt only
+
+E
+
+Fine-tuned model
+
+Documentation retrieval
+
+F
+
+Fine-tuned model
+
+Full OpenCode tools
+
+The most important comparison is F versus C, because that isolates the incremental benefit of fine-tuning in the intended agent environment.
+
+D versus A measures how much X_eTaL knowledge was internalized without tool assistance. E versus B helps separate learned knowledge from retrieved knowledge.
+
+Benchmark categories
+Benchmark
+
+Primary metric
+
+Proposed initial goal
+
+Syntax generation
+
+Parse success
+
+≥95%
+
+Type correctness
+
+Compile success
+
+≥85%
+
+Library usage
+
+Correct API use
+
+≥85%
+
+Functional correctness
+
+Hidden tests passed
+
+≥75%
+
+Compiler repair
+
+Successful repair
+
+≥80%
+
+Linter improvement
+
+Warnings eliminated without regressions
+
+≥80%
+
+Idiomatic code
+
+Independent rubric score
+
+≥4/5
+
+Agent task completion
+
+Verified end-to-end success
+
+≥65%
+
+Tool-call validity
+
+Valid calls / total calls
+
+≥98%
+
+These are aspirational acceptance targets, not predicted results.
+
+A useful benchmark suite might begin with 200–300 tasks, expanding to 500 or more as the language and libraries mature.
+
+Prevent contamination
+The most serious evaluation risk is that the model memorizes examples from the training repositories and appears to have learned general X_eTaL programming.
+
+Use repository-aware and task-family-aware splits. Hold out entire implementations, APIs, or problem families rather than randomly splitting closely related snippets.
+
+I would include three types of benchmark:
+
+Known language, unseen problem: Use established syntax and libraries for a novel task.
+
+Unseen library API: Supply new documentation at evaluation time and test whether the agent can use it.
+
+Unseen diagnostic: Introduce an error pattern not represented in training and test whether the agent can interpret the compiler response.
+
+The unseen-library benchmark is particularly valuable. It tests whether the model has learned how to program in X_eTaL using tools, rather than merely memorizing today's library functions.
+
+Quantify the improvement
+Define a primary metric such as:
+
+SuccessRate
+=
+Tasks passing all required checks
+Total benchmark tasks
+SuccessRate= 
+Total benchmark tasks
+Tasks passing all required checks
+​
+ 
+Then calculate the absolute improvement in percentage points:
+
+Δ
+=
+SuccessRate
+trained
+−
+SuccessRate
+base
+Δ=SuccessRate 
+trained
+​
+ −SuccessRate 
+base
+​
+ 
+For illustration only:
+
+Illustrative benchmark outcome — not measured results
+Example of the improvement the experiment should seek to demonstrate.
+
+0%
+25%
+50%
+75%
+100%
+Base + tools
+SFT + tools
+SFT + preference tuning
+Base + tools: Task success 42%
+SFT + tools: Task success 64%
+SFT + preference tuning: Task success 72%
+In this hypothetical example, SFT improves task completion by 22 percentage points, and preference optimization adds another 8 points.
+
+To establish that such improvements are real, run each model on the same tasks with matched tool budgets, context limits, and decoding settings. Use multiple runs where generation is stochastic, paired bootstrap confidence intervals, and per-category failure analysis.
+
+I would also measure latency, total tokens, tool calls, retries, VRAM peak, and successful tasks per GPU-hour. A model that improves correctness by 5% but takes three times as long may not be the best choice for interactive development.
+
+Idiomatic quality needs independent measurement
+Compiler success alone is insufficient.
+
+A model could generate valid X_eTaL while writing unnecessarily imperative code, ignoring array primitives, duplicating library functionality, or introducing unnecessary mutable state.
+
+Use three complementary measurements:
+
+Deterministic linter rules for objectively detectable issues.
+
+Structural metrics such as unnecessary loops, complexity, and duplicated expressions.
+
+Blind human review or a carefully calibrated evaluator for style decisions the linter cannot yet express.
+
+Do not let the same model grade its own outputs without independent verification.
+
+7. Implement the X_eTaL-Coder repository
+I would create a separate repository, softwarewrighter/X_eTaL-Coder, with a structure resembling:
+
+X_eTaL-Coder/
+├── docs/
+│   ├── architecture.md
+│   ├── training-plan.md
+│   ├── evaluation-plan.md
+│   └── model-selection.md
+├── crates/
+│   ├── corpus/          # Source extraction and provenance
+│   ├── validator/       # Compile, test, lint validation
+│   ├── benchmark/       # Evaluation runner and scoring
+│   ├── trajectories/    # Agent tool-call recording
+│   ├── diagnostics/     # Error classification
+│   └── report/          # Metrics and experiment comparisons
+├── datasets/
+│   ├── manifests/
+│   ├── schemas/
+│   └── splits/
+├── training/
+│   ├── configs/
+│   ├── adapters/
+│   └── backends/
+├── eval/
+│   ├── tasks/
+│   ├── rubrics/
+│   └── baselines/
+├── opencode/
+│   ├── opencode.jsonc
+│   ├── agents/
+│   └── instructions/
+├── experiments/
+└── justfile
+Rust should implement the data pipeline, evaluation harness, tool interfaces, and reporting.
+
+A training backend can be integrated behind a command-line interface, even if its initial implementation uses Python-based ML libraries. That keeps Python isolated rather than making it part of the overall application architecture.
+
+OpenCode integration
+OpenCode's current documentation supports custom OpenAI-compatible providers and explicitly configured model capabilities. 
+
+OpenCode
++1
+
+An illustrative configuration would be:
+
+
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "xetal/xetal-coder",
+  "providers": {
+    "xetal": {
+      "name": "X_eTaL Local Models",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:8000/v1"
+      },
+      "models": {
+        "xetal-coder": {
+          "name": "X_eTaL Coder",
+          "modelID": "xetal-coder",
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          }
+        }
+      }
+    }
+  }
+}
+
+The model ID, context size, and tool support must match the deployed inference server. The configuration does not itself make an untrained model reliable at tool calling.
+
+For evaluation, I would register the base and fine-tuned models separately so OpenCode can switch between them without changing its tools or agent instructions.
+
+8. Development milestones
+0
+Baseline and infrastructure
+
+1–2 weeks
+
+Select two or three candidate models, validate 8 GiB inference, establish OpenCode tool calls, and record baseline results.
+
+Deliverable: Reproducible baseline report
+
+1
+Corpus and benchmark
+
+2–3 weeks
+
+Extract examples, add provenance, create a curated dataset, freeze held-out tests, and validate compiler/linter integration.
+
+Deliverable: Versioned dataset v0.1 and benchmark v0.1
+
+2
+First QLoRA model
+
+1–2 weeks
+
+Train adapters, tune rank and learning rate, compare against the original model, and validate quantized inference.
+
+Deliverable: xetal-coder v0.1
+
+3
+Agent specialization
+
+2–3 weeks
+
+Train on tool-use trajectories, compiler repairs, test-driven coding, and library discovery.
+
+Deliverable: xetal-coder v0.2 with agent benchmarks
+
+4
+Preference and method comparisons
+
+2–4 weeks
+
+Compare SFT, preference optimization, and selected alternative adapters; perform failure analysis.
+
+Deliverable: Fine-tuning comparison report
+
+5
+LSP/DAP integration
+
+Parallel, incremental
+
+Replace CLI-only fallbacks with structured language-service diagnostics, code actions, and debugger support.
+
+Deliverable: Integrated X_eTaL development agent
+
+The durations are planning estimates, assuming the current compiler and test tools can be automated without major redesign.
+
+9. Improvements I would add to the original concept
+There are four important opportunities beyond straightforward fine-tuning.
+
+First, train for library discovery, not library memorization. X_eTaL is evolving. A model that memorizes today's APIs may become obsolete quickly. The agent should be rewarded for inspecting documentation and adapting to unfamiliar interfaces.
+
+Second, treat compiler and linter feedback as structured learning signals. Classify diagnostics by root cause, track repeated failures, and measure whether subsequent model versions eliminate those failure categories. This can eventually feed the ICL/ICRL and offline fine-tuning workflows.
+
+Third, use the language's own compiler to create a self-improving dataset. Generate candidate solutions, validate them, minimize failing examples, and retain verified repairs. Human review remains necessary for style and semantic ambiguity, but much of the mechanical validation can be automated.
+
+Fourth, build an educational experiment explorer in X_eTaL-fine-tuning. It could compare adapters, training loss, held-out success rates, linter violations, and agent trajectories, linking measured outcomes to the LoRA and related mathematics already demonstrated in the project.
+
+10. First tasks for a local coding agent
+I would start with a repository audit and a benchmark harness, rather than immediately launching training.
+
+Task: Bootstrap X_eTaL-Coder
+Design and implement the initial infrastructure for a specialized X_eTaL coding LLM.
+
+Repositories to inspect
+softwarewrighter/X_eTaL
+
+softwarewrighter/X_eTaL-libraries
+
+softwarewrighter/X_eTaL-demos
+
+softwarewrighter/X_eTaL-ML
+
+softwarewrighter/X_eTaL-fine-tuning
+
+Also inspect relevant compiler, linter, registry, LSP, DAP, and documentation tooling.
+
+Objectives
+Audit the actual fine-tuning methods implemented in X_eTaL-fine-tuning. Distinguish working implementations from educational demonstrations and planned features.
+
+Identify existing ML primitives that can be reused without duplication.
+
+Inventory valid X_eTaL source examples, library APIs, tests, and diagnostics.
+
+Design a Rust-based corpus extraction and validation pipeline with reproducible source provenance.
+
+Design a benchmark suite with separate training, validation, and held-out test sets.
+
+Implement a minimal baseline benchmark runner capable of evaluating an unmodified coding model.
+
+Propose a QLoRA training backend and adapter export format compatible with local inference.
+
+Design OpenCode integration using an OpenAI-compatible local endpoint.
+
+Establish quantitative evaluation of compiler success, test success, lint quality, tool use, and VRAM consumption.
+
+Document interfaces needed from the developing LSP and DAP servers.
+
+Constraints
+The deployed model must operate within 8 GiB GPU VRAM.
+
+Rust is preferred for orchestration and tooling.
+
+Keep external ML training frameworks behind isolated adapters.
+
+Do not introduce major changes to existing educational demos.
+
+Do not invent X_eTaL syntax or undocumented compiler commands.
+
+All training examples must be traceable to source versions and validation results.
+
+Held-out benchmark tasks must not contaminate training.
+
+Preserve the existing responsibilities of X_eTaL-ML and X_eTaL-fine-tuning.
+
+Use modular components, pure functions where practical, clear interfaces, and comprehensive tests.
+
+First deliverables
+Produce an architecture document, repository capability audit, corpus inventory, benchmark specification, implementation plan, and the smallest working end-to-end baseline evaluation.
+
+Do not begin substantial fine-tuning until the baseline benchmark is operational and reproducible.
+
+Document unresolved design decisions and dependencies instead of silently making assumptions.
+
+11. Decisions to make before training
+Initial experiment configuration
+
+Model size to prioritize
+
+3–4B first
+
+7–8B first
+
+
+Compare both sizes
+Training hardware
+
+
+Use 16–24 GiB GPUs for training
+
+Require training within 8 GiB too
+
+Explore distributed training
+First success criterion
+
+
+Full OpenCode agent success
+
+Standalone X_eTaL code correctness
+
+Idiomatic quality and linter improvement
+My preferred starting configuration is to compare 3–4B and 7–8B models, use the larger available GPUs for QLoRA training, and optimize for end-to-end OpenCode task success under an 8 GiB inference limit.
+
+The key deliverable is not just a model checkpoint. It is a reproducible experiment showing that X_eTaL specialization improves compilation, library use, code quality, and autonomous repair over the original general-purpose coding model—without sacrificing the tool-use abilities that make the model useful as an agent.
+
+So I plan to use up to 4 GPUs to do this training and 2 to test inference.  From largest to smallest: M1 Max 64G unified, RTX3090-24G, M3 Pro 18G unified, RTX5060-16G, and RTX3060-12G.  So the first 4 for training the last two for testing.
+That gives us a useful heterogeneous training and evaluation environment for X_eTaL-Coder, but I would not attempt to combine all four training GPUs into one conventional distributed training job.
+
+Instead, I'd exploit the different GPU architectures to run parallel experiments, compare fine-tuning strategies, and independently validate the resulting model.
+
+1. Proposed hardware assignments
+Hardware
+
+Memory
+
+Recommended role
+
+Apple M1 Max
+
+64 GB unified
+
+Larger-model training, MLX experiments, teacher-generated data
+
+NVIDIA RTX 3090
+
+24 GB VRAM
+
+Primary QLoRA/LoRA training
+
+Apple M3 Pro
+
+18 GB unified
+
+Independent Apple Silicon training experiments, dataset validation
+
+NVIDIA RTX 5060
+
+16 GB VRAM
+
+Secondary training and inference testing
+
+NVIDIA RTX 3060
+
+12 GB VRAM
+
+Inference testing and benchmark regression
+
+There is one overlap in your proposed allocation: the RTX 5060 appears in both the four training devices and the two inference-test devices. That's perfectly reasonable if we time-share it.
+
+I would designate the RTX 3090 as the primary training device, the M1 Max as the principal alternative training platform, and the RTX 5060 plus RTX 3060 as the inference validation pair.
+
+Importantly, the deployment constraint remains under 8 GiB actual GPU VRAM consumption, even though both test cards have more physical memory.
+
+2. Parallel experiments versus distributed training
+There are two architectures worth distinguishing.
+
+Option A — Independent training experiments (recommended first)
+
+M1 Max
+
+MLX LoRA
+
+RTX 3090
+
+QLoRA
+
+M3 Pro
+
+LoRA / data
+
+RTX 5060
+
+DoRA / SFT
+
+Central experiment registry
+
+Model checkpoints · dataset versions · hyperparameters · metrics
+
+RTX 5060
+
+Inference benchmark A
+
+RTX 3060
+
+Inference benchmark B
+
+Advantages: no cross-platform gradient synchronization, easy reproducibility, and independent experiments that can fail without affecting other runs.
+
+Disadvantage: each training job is limited to the memory of its own device.
+
+Option B — Distributed training is worth investigating later. Apple now documents multi-Mac MLX fine-tuning with data parallelism. 
+
+Apple Developer
++1
+ However, that does not automatically extend to a mixed Apple Metal and NVIDIA CUDA training cluster. A custom distributed backend would be significant engineering work.
+
+3. Training assignments I would actually use
+Device
+
+Experiment
+
+Why
+
+M1 Max 64 GB
+
+Larger teacher models, MLX LoRA, extended-context experiments
+
+Capacity for models beyond the practical training size of the smaller GPUs
+
+RTX 3090 24 GB
+
+Primary 3–8B QLoRA SFT and preference optimization
+
+Mature CUDA training ecosystem
+
+M3 Pro 18 GB
+
+MLX adapter experiments, dataset generation and verification
+
+Independent backend; modest training throughput
+
+RTX 5060 16 GB
+
+Alternative adapter configurations, hyperparameter sweeps
+
+Newer NVIDIA architecture, complementary to the 3090
+
+One hardware detail to verify: NVIDIA lists the standard RTX 5060 as an 8 GB card and the RTX 5060 Ti in 8 GB and 16 GB variants. 
+
+NVIDIA
+ If yours is a 16 GB Ti, that matters when selecting compatible CUDA kernels and training configurations.
+
+4. Enforce the 8 GiB inference limit
+Because neither test GPU is physically limited to 8 GiB, a successful run on a 12 or 16 GB card does not prove the model fits your target.
+
+I would enforce both a runtime allocation limit and a measured peak-memory requirement, then test multiple context lengths.
+
+Test
+
+RTX 5060
+
+RTX 3060
+
+Base model, 4K context
+
+Measure VRAM and speed
+
+Measure VRAM and speed
+
+Fine-tuned, 4K
+
+Same
+
+Same
+
+Fine-tuned, 8K
+
+Same
+
+Same
+
+Fine-tuned, 16K
+
+Same
+
+Same
+
+OpenCode tool-call workflow
+
+Measure peak and success
+
+Measure peak and success
+
+Compiler repair loop
+
+Measure retries and completion
+
+Measure retries and completion
+
+The model must stay below 8 GiB of measured device memory during the complete workflow, including KV cache and runtime buffers. I'd use approximately 7.5 GiB as an initial engineering target to leave headroom, while documenting whether that measurement includes other GPU processes.
+
+For your use case, the most important throughput metric is not raw tokens per second. It's successfully completed X_eTaL development tasks per hour, including compilation, linting, testing, and repair.
+
+5. One architectural addition: an experiment scheduler
+With four training devices, X_eTaL-Coder would benefit from a small Rust-based experiment coordinator.
+
+It should dispatch independent jobs, collect metrics, and compare results across backends. It need not implement distributed gradient training initially.
+
+Each job should record:
+
+[experiment]
+name = "xetal-coder-qlora-r16"
+base_model = "pinned-model-id"
+dataset = "xetal-corpus-v0.1"
+method = "qlora"
+rank = 16
+seed = 42
+
+[resources]
+device = "rtx3090"
+max_vram_gib = 23
+
+[evaluation]
+benchmark = "xetal-bench-v0.1"
+max_inference_vram_gib = 8
+I'd have the scheduler support device capabilities, job queues, checkpoints, retries, and a common results schema. The same scheduler could eventually become a workload client of your MLOS project, without making MLOS a dependency for this first experiment.
+
+6. Revised first milestone
+With this hardware available, I would make the first milestone a controlled comparison rather than immediately optimizing a single adapter:
+
+RTX 3090: QLoRA SFT on a 3–4B model.
+
+M1 Max: MLX LoRA on the same base model and training corpus, where supported.
+
+M3 Pro: Validate the data pipeline and run a small independent experiment.
+
+RTX 5060: Try a second adapter configuration, then switch to inference testing.
+
+RTX 3060: Maintain an untouched base-model inference baseline.
+
+The first published result should show the original model versus the trained model on identical X_eTaL coding tasks, using the same OpenCode tools and under the same 8 GiB inference budget.
+
+That gives you both a working X_eTaL coding agent and a defensible demonstration that fine-tuning improved its capabilities.
+
+One question that affects the next design decision: Is the 8 GB target primarily about running the model on future 8 GB GPUs, or is it a deliberate limit so that multiple X_eTaL coding agents can share your larger GPUs? That determines whether we should prioritize maximum single-agent quality or efficient concurrent inference.
+
+I picked 8GB as a goal, the idea being that when test/inference is run on a 12G VRAM GPU there is plenty of room for context, with room to spare.  I have other GPUs, possibly one 8GB one I could use but it wouldn't have any usable context, so the smallest place to test the ~8G model is a 12G GPU.  Makes sense?
+Yes, that makes sense, and it clarifies an important distinction: 8 GB is your target model memory footprint, not a hard limit on total inference VRAM consumption.
+
+You're deliberately leaving approximately 4 GB on a 12 GB GPU for the KV cache, runtime buffers, tool-use context, and other overhead.
+
+I'd formalize the requirements this way:
+
+Revised inference memory budget
+RTX 3060 — 12 GiB VRAM budget
+
+8 GiB
+
+3 GiB
+
+1 GiB
+
+Model weights
+
+KV cache + runtime
+
+Reserve
+
+Illustrative allocation, not measured usage. Actual cache requirements depend on architecture, context length, concurrency, and cache precision.
+Component
+
+Planning budget
+
+Quantized model weights and associated metadata
+
+≤8 GiB
+
+KV cache, inference workspace, runtime allocations
+
+~3 GiB
+
+Safety margin
+
+~1 GiB
+
+Total
+
+12 GiB
+
+One subtlety: the context window is not simply the unused VRAM. It also depends on the model's supported context length, number of KV heads, layers, and KV-cache precision.
+
+Implications for model selection
+This changes my recommendation slightly.
+
+A 7–8B parameter model at 4-bit quantization becomes more attractive, because its weights will often occupy approximately 4.5–5.5 GiB. That could leave considerably more room than the original 8 GiB model budget.
+
+A larger model, perhaps 12–14B at aggressive quantization, could also be considered, although its tool-use performance, quality loss from quantization, and context memory requirements would need measurement.
+
+I would benchmark three candidates:
+
+Class
+
+Approx. quantized weights
+
+Role
+
+3–4B
+
+2–3 GiB
+
+Fast, lightweight baseline
+
+7–8B
+
+4.5–5.5 GiB
+
+Primary quality/performance candidate
+
+12–14B
+
+7–9 GiB
+
+Stretch candidate, if it fits
+
+These estimates depend on quantization format and model architecture. The 12–14B class may exceed your target.
+
+Revised acceptance criteria
+For X_eTaL-Coder, I'd establish:
+
+Model footprint: At most 8 GiB for resident model weights and required model metadata.
+
+Deployment: Successful local inference on the RTX 3060 12 GB.
+
+Context: Aim for at least 16K tokens, preferably 32K, while staying within available VRAM.
+
+Agent behavior: Reliable OpenCode tool calls, compiler/linter repair loops, and library discovery.
+
+Quality: Statistically meaningful improvement over the original base model on held-out X_eTaL development tasks.
+
+The 16K/32K goals are particularly important for an agent. Source files, library documentation, compiler diagnostics, tool responses, and conversation history can consume context quickly.
+
+My revised recommendation: Start with a strong 7–8B coding/instruct model, QLoRA fine-tune it on the RTX 3090, and deploy a quantized version on the RTX 3060. Use the RTX 5060 as the second inference platform to compare speed and architecture-specific behavior.
+
+That matches your actual objective: a specialized coding agent whose model fits comfortably below 8 GiB, leaving useful context capacity on a modest 12 GB GPU, rather than merely squeezing an entire inference process into 8 GB.
+
+So, a decision to make is dense vs. MoE model to start with for training.  I think MoE is preferred
+X_eTaL-Coder: Dense vs. MoE for fine-tuning
+I agree that Mixture of Experts (MoE) is a promising direction for X_eTaL-Coder, particularly given your goals of specializing a model in a relatively uncommon programming language, teaching it libraries and idioms, and deploying it on a 12 GB GPU.
+
+However, I would distinguish two decisions:
+
+Should the final X_eTaL-Coder use MoE? My preference is yes, provided we find a model that meets your memory and quality requirements.
+
+Should the first training experiment use MoE? Probably, but I would retain a dense control model to prove that MoE provides a meaningful advantage.
+
+The key issue is that MoE reduces active computation per token, but does not automatically reduce the memory required to store all model weights.
+
+1. Why MoE is attractive for X_eTaL
+Characteristic
+
+Dense
+
+MoE
+
+Parameters used per token
+
+Essentially all
+
+Selected experts plus shared components
+
+Model weight memory
+
+All dense weights
+
+All resident experts and shared weights
+
+Specialization
+
+Distributed across shared weights
+
+Potentially distributed across experts
+
+Fine-tuning
+
+Relatively straightforward
+
+Router and expert adaptation choices
+
+Inference efficiency
+
+Predictable
+
+Can be better at similar active compute
+
+Tool-use specialization
+
+Possible
+
+Possible, but not automatic
+
+Training complexity
+
+Lower
+
+Higher
+
+Under 8 GiB weights
+
+Easier to plan
+
+Depends heavily on total parameters
+
+For X_eTaL, I see an interesting opportunity to investigate whether different experts become better at particular tasks: array programming, macros, library use, compiler diagnostics, and agent tool interactions.
+
+But there's an important caveat: MoE experts do not naturally correspond to human-defined specialties. A router selects experts according to learned token representations, not necessarily according to whether the task involves arrays or debugging.
+
+We can measure specialization and potentially encourage it during fine-tuning, but should not assume it already exists.
+
+2. Candidate models worth testing
+The main challenge is finding a small, capable, fine-tunable MoE rather than simply selecting a popular MoE with a low active-parameter count.
+
+Candidate
+
+Architecture
+
+Approx. 4-bit weights
+
+Assessment
+
+IBM Granite 4.0 7B-A1B
+
+MoE, 7B total / ~1B active
+
+~4–5 GiB
+
+First MoE candidate
+
+OpenMoE-8B-Chat
+
+MoE, 8B total / ~2B active
+
+~5 GiB
+
+Useful research model; weaker modern coding baseline
+
+Qwen3-Coder-30B-A3B-Instruct
+
+MoE, 30B total / ~3B active
+
+~17–19 GiB
+
+Excellent larger-model comparison, too large for target
+
+Qwen3.5-9B
+
+Dense, ~9.7B
+
+~5–6 GiB
+
+Strong dense control
+
+Qwen3.5-4B
+
+Dense, ~4.7B
+
+~2.5–3 GiB
+
+Fast baseline and fallback
+
+Granite's compact MoE design is especially relevant to the memory budget. OpenMoE-8B is interesting because it exposes a research-oriented expert architecture and checkpoints, but its published quality comparisons are with much older small models. 
+
+Local Models and Offline Agents
++2
+
+The Qwen3-Coder MoE is a useful reference for agentic coding behavior, but its approximately 17.3 GB Q4 weights make it unsuitable as the final 8 GB model without significant compression or offloading. 
+
+gpu.nz
+
+I would not choose OpenMoE simply because it is an MoE. For the intended OpenCode agent, existing instruction following, coding competence, and tool-call reliability matter more than the architectural label.
+
+3. A potentially better MoE strategy: expert specialization and pruning
+Your project has an advantage over general-purpose coding assistants: the target domain is relatively narrow.
+
+That creates an opportunity to explore domain-specific expert pruning, followed by fine-tuning.
+
+A July 2026 paper, Half the Experts, All the Code, examined pruning experts from larger coding-capable MoEs. It reported that removing half the experts could preserve coding performance on its primary benchmark, although results depended on the model family. It also found that quantizing the full model was generally preferable until quantization became very aggressive.
+
+This is highly relevant to X_eTaL-Coder, but it does not establish that pruning a model to one-quarter of its size will preserve X_eTaL coding ability.
+
+I would make it a separate experiment:
+
+Expert specialization experiment
+
+Original MoE checkpoint
+
+Preserve all experts and routing behavior
+
+Full model
+
+Quantize + QLoRA
+
+Pruned model
+
+Measure expert use → prune → recover
+
+X_eTaL benchmark
+
+Coding quality · tool use · latency · memory · expert routing
+
+I would compare quantization against pruning at the same memory footprint, rather than assuming pruning is better.
+
+4. Fine-tuning MoE: which parameters should we adapt?
+This is where X_eTaL-fine-tuning could provide genuinely interesting research.
+
+I suggest testing four configurations on the same base MoE and dataset.
+
+Configuration
+
+Adapted parameters
+
+Research question
+
+A — Shared-only LoRA
+
+Attention and shared layers
+
+Can we teach X_eTaL without modifying experts?
+
+B — Expert LoRA
+
+Selected expert projections
+
+Does expert adaptation improve language specialization?
+
+C — Shared + expert LoRA
+
+Both shared and expert layers
+
+Is combined adaptation worth the cost?
+
+D — Router + expert LoRA
+
+Router and expert layers
+
+Can learned routing improve X_eTaL performance?
+
+For configuration D, routers are typically small and may be trained directly rather than through LoRA. This also introduces the risk of expert collapse or undesirable changes in expert utilization.
+
+I would measure:
+
+Expert-selection frequency by task category.
+
+Routing entropy and load balance.
+
+Expert overlap between syntax, library, and debugging tasks.
+
+Adapter parameter count and training cost.
+
+Actual coding success, not merely training loss.
+
+An especially interesting question is whether X_eTaL-specific adaptation naturally changes expert utilization. That could be visualized in X_eTaL-ML and compared across different training methods.
+
+5. How I would allocate your hardware
+Hardware
+
+Assignment
+
+RTX 3090 24 GB
+
+Primary MoE QLoRA experiments
+
+M1 Max 64 GB
+
+Larger MoE exploration, teacher inference, MLX experiments where supported
+
+M3 Pro 18 GB
+
+Smaller-model experiments and dataset preparation
+
+RTX 5060 16 GB
+
+Alternative fine-tuning experiments, then inference testing
+
+RTX 3060 12 GB
+
+Main deployment benchmark
+
+I would avoid making distributed training a prerequisite. Independent experiments are easier to reproduce and compare.
+
+6. My proposed decision
+I'd prioritize the following sequence:
+
+Granite 4.0 7B-A1B MoE: Verify tool calling, training-backend compatibility, and quantized deployment on the RTX 3060.
+
+Qwen3.5-4B or 9B dense: Establish a strong control with identical datasets and tools.
+
+MoE adaptation study: Compare shared-only, expert-only, and combined LoRA.
+
+Expert pruning: Explore only after establishing a successful full-model MoE baseline.
+
+Larger MoE teacher: Use a stronger model to generate candidate training examples, but accept only validated X_eTaL outputs.
+
+Decision gates
+I would select MoE as the production architecture if it achieves comparable or better held-out task success than the dense alternative while offering a meaningful advantage in inference speed, memory, or agent task throughput.
+
+If the MoE loses significantly on coding correctness or tool reliability, I'd retain the dense model as the first usable release while continuing the MoE research.
+
+My recommendation is to make MoE the primary research path, with Granite 4.0 7B-A1B as the first candidate. Its small active-parameter footprint is attractive for the RTX 3060, and its total size is compatible with your 8 GiB model-weight target.
+
+The broader research opportunity is particularly compelling: X_eTaL-Coder could demonstrate not only that fine-tuning improves coding in a new language, but also which parts of an MoE need to be adapted to acquire that capability.
+
+So I am assuming that my language X_eTaL, its libraries, demos, etc. is a much smaller and simpler domain than, for example, Rust coding
+Yes. X_eTaL is a dramatically smaller domain than Rust, and that is potentially one of the biggest advantages of your X_eTaL-Coder project.
+
+However, there is an important distinction between the size of the language's domain and the difficulty of teaching that domain to an LLM.
+
+I think your assumption is correct, and it has several implications for model size, MoE specialization, training data, and the amount of fine-tuning required.
+
+1. X_eTaL versus Rust: scope of knowledge
+Dimension
+
+X_eTaL
+
+Rust
+
+Language specification
+
+Relatively small, evolving
+
+Large, mature
+
+Syntax and semantics
+
+Focused, array-oriented
+
+Extensive
+
+Standard libraries
+
+Small, controlled ecosystem
+
+Extensive standard library
+
+Third-party packages
+
+Limited
+
+Hundreds of thousands of crates
+
+Programming paradigms
+
+Primarily array/functional
+
+Multi-paradigm
+
+Type system
+
+Developing
+
+Sophisticated generics, traits, lifetimes
+
+Compiler diagnostics
+
+Smaller set
+
+Extensive
+
+Framework knowledge
+
+Limited
+
+Web, embedded, async, systems, ML, etc.
+
+API compatibility
+
+Under your control
+
+Large, independently evolving ecosystem
+
+Training examples
+
+Relatively scarce
+
+Enormous public corpus
+
+There are two competing effects:
+
+X_eTaL has far less material to learn. A model doesn't need to memorize the enormous collection of libraries, frameworks, and idioms that a Rust coding assistant encounters.
+
+X_eTaL is much less represented in pretraining. A general coding model already knows a great deal about Rust. It may know almost nothing about X_eTaL, and could incorrectly substitute APL, K, BQN, or other languages.
+
+The second point makes fine-tuning especially valuable.
+
+2. The model can be smaller because the domain is smaller
+A general coding LLM must handle many languages, frameworks, conventions, and development workflows.
+
+Your X_eTaL-Coder needs to specialize in a much narrower set of tasks:
+
+Understand X_eTaL syntax, types, semantics, and idioms.
+
+Use X_eTaL libraries and macros.
+
+Generate and modify programs.
+
+Interpret compiler and linter diagnostics.
+
+Write and execute tests.
+
+Use OpenCode tools and eventually LSP/DAP interfaces.
+
+It does not need to become an expert in every Rust crate or every JavaScript framework.
+
+This suggests that a small MoE with approximately 1–3B active parameters could be sufficient, although the active parameter count alone does not establish how capable it will be.
+
+There is also a distinction between knowing a programming language and solving programming problems. Even a narrow-domain coding agent still needs reasoning, decomposition, debugging, and planning abilities.
+
+Those capabilities are largely inherited from the base model, and fine-tuning on X_eTaL will not automatically create them.
+
+3. A smaller domain changes how I would fine-tune
+Rather than trying to teach everything through a large training corpus, I would separate three kinds of knowledge.
+
+Knowledge
+
+Best initial mechanism
+
+Reason
+
+Stable syntax and semantics
+
+Fine-tuning
+
+Should be internalized
+
+Idiomatic programming patterns
+
+Fine-tuning + preference optimization
+
+Repeatedly used in generation
+
+Library APIs and documentation
+
+Retrieval + selective fine-tuning
+
+APIs change; exact signatures should be verified
+
+Compiler error interpretation
+
+Fine-tuning on repair trajectories
+
+Teaches generalizable debugging behavior
+
+Linter rules
+
+Fine-tuning + tool feedback
+
+Reinforces preferred style
+
+New or experimental features
+
+Retrieval
+
+Avoids retraining for every change
+
+This is especially appropriate for X_eTaL because you control both the language and its supporting ecosystem.
+
+You can coordinate changes to the compiler, documentation, linter, training examples, and evaluation benchmarks.
+
+4. The strongest advantage: generating validated training data
+Unlike most people attempting to specialize an LLM, you have direct access to the language implementation.
+
+That means you can systematically construct training examples rather than depending entirely on human-written source code.
+
+For example:
+
+X_eTaL language rules + libraries
+
+Generate candidate programs and exercises
+
+Compiler
+
+Linter
+
+Test runner
+
+Verified examples + repair trajectories
+
+Fine-tune and evaluate X_eTaL-Coder
+
+You could generate thousands of variations from a relatively small number of well-designed examples.
+
+But the variations must represent meaningful differences. Generating 10,000 nearly identical array expressions would not be equivalent to teaching 10,000 independent programming concepts.
+
+I would favor coverage of language features and combinations of features over raw dataset size.
+
+5. Implications for MoE
+Here's where I would modify our earlier discussion.
+
+I don't think you necessarily need a large MoE with many experts to teach X_eTaL.
+
+In fact, a compact MoE might work better because the domain is relatively constrained.
+
+But I would not attempt to assign one expert to arrays, another to macros, and another to compiler errors at the outset.
+
+Instead, I would first try:
+
+Freeze the pretrained MoE's router and experts.
+
+Fine-tune shared attention layers using LoRA.
+
+Measure X_eTaL coding improvement.
+
+Add LoRA to selected expert projections.
+
+Compare results and inspect routing behavior.
+
+That lets us answer a useful research question:
+
+Can a small amount of adaptation teach an existing MoE a new programming language without significantly altering its general reasoning and tool-use capabilities?
+
+If the answer is yes, the resulting adapter could be surprisingly small.
+
+6. An experiment I would prioritize: how much X_eTaL training is enough?
+Instead of immediately assembling the largest possible dataset, I would run a learning-curve experiment.
+
+Illustrative learning curve — hypothetical, not measured
+The experiment should determine whether X_eTaL coding success saturates with a modest validated corpus.
+
+0%
+25%
+50%
+75%
+100%
+0
+100
+500
+1,000
+2,500
+5,000
+10,000
+0: Held-out task success 15%
+100: Held-out task success 32%
+500: Held-out task success 51%
+1,000: Held-out task success 63%
+2,500: Held-out task success 72%
+5,000: Held-out task success 77%
+10,000: Held-out task success 79%
+Train adapters using progressively larger subsets, for example 100, 500, 1,000, 2,500, 5,000, and 10,000 validated examples.
+
+Keep the evaluation tasks fixed and separate.
+
+If performance saturates around 2,500 examples, then the next improvement probably comes from better examples, different task coverage, or improved agent tooling—not simply more training data.
+
+This experiment is also a natural fit for X_eTaL-fine-tuning's educational mission.
+
+7. What I would change in the overall plan
+Given the narrow domain, I would prioritize:
+
+Smaller models first: Compare a compact MoE with a similarly deployable dense model.
+
+High-quality training data: Build a coverage matrix for language features, idioms, and libraries.
+
+Curriculum training: Start with syntax and semantics, then library usage, then tool-based coding and repair.
+
+Selective adaptation: Compare shared-layer LoRA against shared-plus-expert LoRA.
+
+Retrieval for evolving APIs: Avoid repeatedly fine-tuning merely to incorporate library changes.
+
+Rigorous generalization tests: Verify that the model can solve new problems rather than reproduce known examples.
+
+One additional possibility: distillation
+Your larger GPUs and 64 GB M1 Max create an opportunity to use a larger, more capable model as a teacher.
+
+The teacher could produce problem decompositions, candidate implementations, explanations, and repair trajectories. The compiler and test suite would verify the results before they enter the training corpus.
+
+This might be more effective than relying exclusively on examples written by the small student model.
+
+However, the teacher must not be treated as authoritative about X_eTaL syntax. It should have access to the actual documentation and tools, and its output must be validated.
+
+Bottom line
+I agree with your underlying reasoning: X_eTaL is a much smaller domain than Rust, so a smaller specialized coding model may achieve a high level of competence with substantially less training data.
+
+But the goal should not be to make a small model memorize the entire language. It should be to combine:
+
+A capable pretrained reasoning model + compact X_eTaL specialization + authoritative tool access + compiler-verified feedback.
+
+That combination may be more important than the difference between dense and MoE.
+
+I would make the first major research question for X_eTaL-Coder:
+
+How small can an LLM be while still functioning as a competent, idiomatic, tool-using X_eTaL coding agent?
+
+And the second:
+
+Does a compact MoE learn and retain X_eTaL coding competence more efficiently than a dense model under the same inference-memory budget?
+
+Those two questions would give the project a clear experimental purpose, with results that could be useful beyond X_eTaL itself.
+
+A stretch goal would be to have a quantized MoE version that works on 4G or 6G VRAM GPUs as a coding assistant in an IDE or Emacs (using LSP and DAP)
+That is a worthwhile stretch goal, and it suggests a useful distinction between X_eTaL-Coder Agent and X_eTaL-Coder Lite.
+
+I would design for both from the beginning, but avoid compromising the primary 8 GiB model to achieve the smaller footprint.
+
+1. Two deployment profiles
+Capability
+
+X_eTaL-Coder Agent
+
+X_eTaL-Coder Lite
+
+Target GPU
+
+12 GB VRAM
+
+4–6 GB VRAM
+
+Model weight budget
+
+≤8 GiB
+
+~2–4 GiB
+
+Architecture
+
+Compact MoE preferred
+
+Quantized/pruned MoE preferred
+
+Context
+
+16K–32K target
+
+4K–16K target
+
+Primary interface
+
+OpenCode
+
+Emacs / IDE
+
+Code generation
+
+Full programs and modules
+
+Functions, edits, completions
+
+Tool use
+
+Multi-step autonomous
+
+Focused, bounded tool calls
+
+Compiler/linter repair
+
+Autonomous loops
+
+Diagnostic-driven quick fixes
+
+LSP
+
+Full integration
+
+Primary source of context
+
+DAP
+
+Debugging workflows
+
+Targeted debugging assistance
+
+The distinction is more about agent autonomy and available context than language competence. Both models should understand the same X_eTaL syntax, semantics, and idioms.
+
+A smaller model might be excellent at generating a function, explaining a compiler diagnostic, or suggesting a quick fix, even if it struggles to coordinate a complex multi-file refactoring.
+
+2. MoE is particularly interesting for the Lite model
+The challenge is that an MoE's memory requirement is determined largely by its total parameters, not just the experts activated for each token.
+
+For example:
+
+MoE total parameters
+
+Approx. 4-bit weights
+
+Approx. 3-bit weights
+
+3B
+
+1.7–2.2 GiB
+
+1.3–1.8 GiB
+
+7B
+
+4–5 GiB
+
+3–4 GiB
+
+8B
+
+4.5–5.5 GiB
+
+3.5–4.5 GiB
+
+14B
+
+8–10 GiB
+
+6–8 GiB
+
+These are approximate, format-dependent estimates. Quantization metadata, shared layers, embeddings, and runtime allocations can change the results.
+
+For 4 GB deployment, I would investigate three strategies:
+
+Small native MoE: Find a model with sufficiently few total parameters to fit at 4-bit quantization.
+
+Expert pruning: Remove low-value experts, then recover quality through additional fine-tuning.
+
+Mixed-precision quantization: Preserve sensitive shared layers, routers, and selected experts at higher precision while aggressively quantizing less-sensitive components.
+
+A fourth possibility is expert offloading, but that trades memory for latency and may not be suitable for interactive editor completion.
+
+3. The IDE should do more work so the LLM can do less
+This is perhaps the most important architectural insight for the Lite version.
+
+You are already developing LSP and DAP servers. These can provide much of the precise, deterministic information that a coding model would otherwise need to infer.
+
+X_eTaL-Coder Lite architecture
+
+Emacs / IDE
+
+Completion · code actions · explain · fix · debug
+
+LSP + DAP
+
+Symbols, types, diagnostics, stack frames
+
+Context builder
+
+Relevant code, APIs, errors, examples
+
+Quantized X_eTaL-Coder Lite MoE
+
+Small local inference runtime · 4–6 GB GPU
+
+Validated edits
+
+Compiler check · linter check · tests · apply patch
+
+For example, when the user requests a fix for a type mismatch, the LSP can supply the exact diagnostic, inferred types, relevant function definition, and available code actions.
+
+The small model then has a much narrower task: propose an appropriate correction.
+
+Likewise, DAP can supply stack frames, variable values, and execution state. The model need not reconstruct those details from a large source-code context.
+
+LSP and DAP are therefore not just conveniences; they can compensate for the smaller model's limited capacity.
+
+4. One training pipeline, multiple deployment variants
+I would avoid maintaining two completely separate training datasets and training processes.
+
+Instead:
+
+Shared X_eTaL corpus + verified tool trajectories
+
+Primary fine-tuned MoE
+
+Agent
+
+Quantized, full experts
+
+12 GB GPU
+
+Lite
+
+Pruned / distilled / quantized
+
+4–6 GB GPU
+
+In practice, Lite might require a separate smaller student model rather than being derived directly from the primary MoE. Distillation can transfer coding behavior and task competence, but it does not automatically transfer an MoE's architecture or experts.
+
+I would evaluate three Lite approaches:
+
+Approach
+
+Advantage
+
+Risk
+
+Quantize primary MoE
+
+Simplest release process
+
+May not fit 4–6 GB
+
+Prune experts and fine-tune
+
+Retains much of the original architecture
+
+Potential quality loss
+
+Distill into smaller MoE
+
+Better control of final size
+
+Requires more training and validation
+
+5. Suggested Lite benchmark
+The Lite benchmark should emphasize editor interactions rather than full autonomous software development.
+
+Task
+
+Proposed target
+
+Complete a small function
+
+Under 3 seconds to first useful response
+
+Explain a compiler error
+
+Correct diagnosis ≥90%
+
+Apply a diagnostic-driven fix
+
+≥80% verified success
+
+Suggest idiomatic improvement
+
+≥80% accepted by rubric
+
+Use an unfamiliar library
+
+Correct retrieval and API use
+
+Explain a paused debugger state
+
+Correctly interpret supplied DAP data
+
+Memory
+
+Fits within 4 GB or 6 GB deployment profile
+
+These are initial goals, not measured predictions. Latency should be tested on the actual target GPU, including older cards.
+
+For Emacs, I would distinguish inline completion from interactive coding assistance. Inline completion has a much tighter latency requirement; the Lite model might be suitable for explanations and code actions before it is fast enough for every-keystroke completion.
+
+6. A revised project roadmap
+I'd organize the work around three releases:
+
+X_eTaL-Coder v0.1 — Research baseline
+
+Demonstrate that fine-tuning improves a compact MoE's X_eTaL coding competence over its original checkpoint.
+
+X_eTaL-Coder v1.0 — OpenCode Agent
+
+Quantized MoE, ≤8 GiB model footprint, deployed on 12 GB GPUs, with compiler/linter/test tools and eventual LSP/DAP integration.
+
+X_eTaL-Coder Lite — IDE Assistant
+
+4 GB and 6 GB deployment profiles, leveraging LSP/DAP context, with focused completion, diagnostics, quick fixes, and debugging assistance.
+
+The most interesting possibility is that X_eTaL-Coder Lite could become a highly competent, fully local language-specific assistant on hardware that would struggle to run a general-purpose coding agent.
+
+Because X_eTaL has a relatively small, controlled ecosystem, and because you can supply precise compiler, LSP, DAP, and library information, a small specialized model may perform surprisingly well.
+
+I would make the stretch goal explicit in the repository's project charter, but keep it as a separate optimization track so the initial MoE training and evaluation can proceed without being constrained by 4 GB deployment.
+
+
+
+
+
+10,000
+⋮⋮⋮⋮
+

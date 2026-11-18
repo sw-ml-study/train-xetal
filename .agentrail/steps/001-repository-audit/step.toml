@@ -1,0 +1,8 @@
+number = 1
+slug = "repository-audit"
+status = "in-progress"
+description = "Audit the X_eTaL ecosystem and local GPU access. Deliver pinned capability au..."
+role = "production"
+context_files = []
+created_at = "2026-11-17T16:03:55"
+commits = []

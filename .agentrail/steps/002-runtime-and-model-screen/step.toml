@@ -1,0 +1,8 @@
+number = 2
+slug = "runtime-and-model-screen"
+status = "pending"
+description = "Verify RTX 5060 CUDA and OpenCode tool calls. Screen compact MoE and dense co..."
+role = "production"
+context_files = []
+created_at = "2026-11-17T16:03:55"
+commits = []

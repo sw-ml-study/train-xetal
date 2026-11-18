@@ -1,0 +1,1 @@
+Specify the benchmark, implement the minimal runner, and record a reproducible unmodified checkpoint baseline across prompt-only, retrieval, and full OpenCode modes.

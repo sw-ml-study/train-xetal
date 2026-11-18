@@ -1,0 +1,1 @@
+Verify RTX 5060 CUDA and OpenCode tool calls. Screen compact MoE and dense controls for tool reliability, export support, and memory. Record revisions, commands, and results.
