@@ -1,0 +1,1 @@
+Audited five pinned X_eTaL repositories, inventoried corpus inputs, wrote experiment architecture, verified RTX 5060 Ti and CLI smoke checks, and recorded OpenCode launcher failure. Audit commit local on main pending remote setup.
